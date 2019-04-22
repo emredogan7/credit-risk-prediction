@@ -14,10 +14,10 @@ import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.feature.VectorAssembler
 
-import org.apache.spark.ml.tuning.{ ParamGridBuilder, CrossValidator }
+import org.apache.spark.ml.tuning.{ ParamGridBuilder, TrainValidationSplit}
 
 import org.apache.spark.ml.{ Pipeline, PipelineStage }
-import org.apache.spark.mllib.evaluation.RegressionMetrics
+import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.log4j.{ Level, Logger }
 
 object Credit {
@@ -54,88 +54,99 @@ object Credit {
     val creditDF = parseRDD(sc.textFile("credit.csv")).map(parseCredit).toDF().cache()
     println(creditDF.count())
 
-    // creditDF.printSchema
-
-    // creditDF.show
-    /*
-    sqlContext.sql("SELECT creditability, avg(balance) as avgbalance, avg(amount) as avgamt, avg(duration) as avgdur  FROM credit GROUP BY creditability ").show
-
-    creditDF.describe("balance").show
-    creditDF.groupBy("creditability").avg("balance").show
-
-    */
-
-    val assembler = new VectorAssembler().setInputCols(Array("balance", "duration", "history", "purpose", "amount",
-        "savings", "employment", "instPercent", "sexMarried", "guarantors", "residenceDuration", "assets", "age", 
-        "concCredit", "apartment","credits", "occupation", "dependents", "hasPhone", "foreign"))
+    // question 1.
+    val assembledFeatures = new VectorAssembler()
+        .setInputCols(Array("balance", "duration", "history", "purpose", "amount","savings", "employment",
+            "instPercent", "sexMarried", "guarantors", "residenceDuration", "assets", "age", "concCredit",
+            "apartment","credits", "occupation", "dependents", "hasPhone", "foreign"))
         .setOutputCol("features")
-    
-    val df2 = assembler.transform(creditDF)
-    df2.show
+        .transform(creditDF)
 
-    val labelIndexer = new StringIndexer().setInputCol("creditability").setOutputCol("label")
-    val df3 = labelIndexer.fit(df2).transform(df2)
-    df3.show
-    val splitSeed = 5043
-    val Array(trainingData, testData) = df3.randomSplit(Array(0.7, 0.3), splitSeed)
+    // question 2.
+    val indexer = new StringIndexer()
+      .setInputCol("creditability")
+      .setOutputCol("label")
 
-    val classifier = new RandomForestClassifier().setImpurity("gini").setMaxDepth(3).setNumTrees(20).setFeatureSubsetStrategy("auto").setSeed(5043)
-    val model = classifier.fit(trainingData)
+    val indexedData = indexer
+      .fit(assembledFeatures)
+      .transform(assembledFeatures)
+
+    indexedData.show
+
+    // question 3.
+    val splitWeights = Array(0.8, 0.2)
+    // val splitRandomnessSeed = 1234
+    val Array(train_data, test_data) = indexedData.randomSplit(splitWeights)
+
+    // question 4.
+    val RFclassifier = new RandomForestClassifier()
+    .setMaxDepth(3)
+    .setMaxBins(25)
+    .setImpurity("gini")
+    .setFeatureSubsetStrategy("auto")
+    .setSeed(1234)
+
+    // the model creation without a pipeline
+    val model = RFclassifier.fit(train_data)
+    println("\n\nMODEL SUMMARY: \n")
+    println(model.toDebugString)
 
     val evaluator = new BinaryClassificationEvaluator().setLabelCol("label")
-    val predictions = model.transform(testData)
-    model.toDebugString
+    val predictions = model.transform(test_data)
 
     val accuracy = evaluator.evaluate(predictions)
-    println("accuracy before pipeline fitting" + accuracy)
+    println("\nAccuracy of the model without using pipeline fitting :  " + accuracy)
 
-    val rm = new RegressionMetrics(
-      predictions.select("prediction", "label").rdd.map(x =>
-        (x(0).asInstanceOf[Double], x(1).asInstanceOf[Double])))
-    println("MSE: " + rm.meanSquaredError)
-    println("MAE: " + rm.meanAbsoluteError)
-    println("RMSE Squared: " + rm.rootMeanSquaredError)
-    println("R Squared: " + rm.r2)
-    println("Explained Variance: " + rm.explainedVariance + "\n")
+    // question 5.
 
+    /* We use a ParamGridBuilder to construct a grid of parameters to search over
+     * this grid will have 3 x 3 x 2 = 12 parameter settings for trainValidationSplit to choose from.
+     * TrainValidationSplit will try all these combinations and choose best among them.
+     */
     val paramGrid = new ParamGridBuilder()
-      .addGrid(classifier.maxBins, Array(25, 31))
-      .addGrid(classifier.maxDepth, Array(5, 10))
-      .addGrid(classifier.numTrees, Array(20, 60))
-      .addGrid(classifier.impurity, Array("entropy", "gini"))
+      .addGrid(RFclassifier.maxBins, Array(25,28, 31))
+      .addGrid(RFclassifier.maxDepth, Array(4, 6, 8))
+      .addGrid(RFclassifier.impurity, Array("entropy", "gini"))
       .build()
 
-    val steps: Array[PipelineStage] = Array(classifier)
-    val pipeline = new Pipeline().setStages(steps)
+    // The pipeline consists of a single stage, our constructed classifier.
+    val pipeline = new Pipeline().setStages(Array(RFclassifier))
 
-    val cv = new CrossValidator()
+    /* TrainValidationSplit is used for hyperparameter tuning task, or model selection.
+     * Estimator is the algorithm/pipeline to be tuned.
+     * Evaluator is the metric to measure how well a fitted model does on held-out test data.
+     */
+    val trainValidationSplit = new TrainValidationSplit()
       .setEstimator(pipeline)
       .setEvaluator(evaluator)
       .setEstimatorParamMaps(paramGrid)
-      .setNumFolds(10)
+      .setTrainRatio(0.75)
 
-    val pipelineFittedModel = cv.fit(trainingData)
+    /* By using 'TrainValidationSplit' for model selection, the best resulting model
+     * is achieved when trained with training data. Notice that 75% of training data
+     * is used for actual training stage and the rest for the hyperparameter selection (validation)!
+     */
 
-    val predictions2 = pipelineFittedModel.transform(testData)
-    val accuracy2 = evaluator.evaluate(predictions2)
-    println("accuracy after pipeline fitting" + accuracy2)
+    val pipelineFittedModel = trainValidationSplit.fit(train_data)
 
-    println(pipelineFittedModel.bestModel.asInstanceOf[org.apache.spark.ml.PipelineModel].stages(0))
+    val pipelineFittedModelPredictions = pipelineFittedModel.transform(test_data)
 
-    pipelineFittedModel
-      .bestModel.asInstanceOf[org.apache.spark.ml.PipelineModel]
-      .stages(0)
-      .extractParamMap
 
-    val rm2 = new RegressionMetrics(
-      predictions2.select("prediction", "label").rdd.map(x =>
-        (x(0).asInstanceOf[Double], x(1).asInstanceOf[Double])))
+    val pipelineAccuracy = evaluator.evaluate(pipelineFittedModelPredictions)
+    println("Accuracy of the model with using pipeline fitting :  " + evaluator.evaluate(pipelineFittedModelPredictions))
 
-    println("MSE: " + rm2.meanSquaredError)
-    println("MAE: " + rm2.meanAbsoluteError)
-    println("RMSE Squared: " + rm2.rootMeanSquaredError)
-    println("R Squared: " + rm2.r2)
-    println("Explained Variance: " + rm2.explainedVariance + "\n")
+    /* Among 12 different models, the best model is extracted so that 
+     * we can print its hyperparameters.
+     */
+    val bestModel = pipelineFittedModel.bestModel.
+    asInstanceOf[org.apache.spark.ml.PipelineModel]
+    .stages(0)
+
+    // finding the parameters of best resulting method.
+    val bestModelParameters = bestModel.extractParamMap()
+    println(bestModelParameters)
+
+
 
   }
 }
