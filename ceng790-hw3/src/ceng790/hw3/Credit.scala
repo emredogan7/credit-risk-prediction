@@ -10,21 +10,18 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 
 import org.apache.spark.ml.classification.RandomForestClassifier
+import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
-import org.apache.spark.ml.feature.StringIndexer
-import org.apache.spark.ml.feature.VectorAssembler
-
-import org.apache.spark.ml.tuning.{ ParamGridBuilder, TrainValidationSplit}
-
-import org.apache.spark.ml.{ Pipeline, PipelineStage }
+import org.apache.spark.ml.tuning.{ParamGridBuilder, TrainValidationSplit}
+import org.apache.spark.ml.{Pipeline, PipelineStage}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.log4j.{ Level, Logger }
+import org.apache.log4j.{Level, Logger}
 
 object Credit {
   // define the Credit Schema
   case class Credit(
     creditability: Double,
-    balance:       Double, duration: Double, history: Double, purpose: Double, amount: Double,
+    balance: Double, duration: Double, history: Double, purpose: Double, amount: Double,
     savings: Double, employment: Double, instPercent: Double, sexMarried: Double, guarantors: Double,
     residenceDuration: Double, assets: Double, age: Double, concCredit: Double, apartment: Double,
     credits: Double, occupation: Double, dependents: Double, hasPhone: Double, foreign: Double)
@@ -44,7 +41,6 @@ object Credit {
 
   def main(args: Array[String]) {
     Logger.getLogger("org").setLevel(Level.ERROR)
-
     val spark = SparkSession.builder.appName("Spark SQL").config("spark.master", "local[*]").getOrCreate()
     val sc = spark.sparkContext
     val sqlContext = new org.apache.spark.sql.SQLContext(sc)
@@ -126,18 +122,14 @@ object Credit {
      * is achieved when trained with training data. Notice that 75% of training data
      * is used for actual training stage and the rest for the hyperparameter selection (validation)!
      */
-
     val pipelineFittedModel = trainValidationSplit.fit(train_data)
-
     val pipelineFittedModelPredictions = pipelineFittedModel.transform(test_data)
 
-
+    // finding the accuracy of the best model achieved from the pipeline.
     val pipelineAccuracy = evaluator.evaluate(pipelineFittedModelPredictions)
     println("Accuracy of the model with using pipeline fitting :  " + evaluator.evaluate(pipelineFittedModelPredictions))
 
-    /* Among 12 different models, the best model is extracted so that 
-     * we can print its hyperparameters.
-     */
+    // Among 12 different models, the best model is extracted so that we can print its hyperparameters.
     val bestModel = pipelineFittedModel.bestModel.
     asInstanceOf[org.apache.spark.ml.PipelineModel]
     .stages(0)
