@@ -62,4 +62,4 @@ Hyperparameters of the Best Model:
 	rfc_372ced9699eb-subsamplingRate: 1.0
 }
 ```
-A more detailed technical report can be found [here](./docs/report.pdf)
+A more detailed technical report can be found [here](./docs/report.pdf).
