@@ -1,9 +1,9 @@
 # Credit Risk Prediction by Using Apache Spark MLlib
 
-- A random forest based classifier to predict the creditability of a person by using Apache Spark.
+A random forest based classifier to predict the creditability of a person by using Apache Spark.
 
 ## Dataset  
-It is [Statlog (German Credit Data) dataset](https://archive.ics.uci.edu/ml/datasets/Statlog+(German+Credit+Data)) which classifies people described by a set of attributes as good or bad credit risks. 
+- It is the [Statlog (German Credit Data) dataset](https://archive.ics.uci.edu/ml/datasets/Statlog+(German+Credit+Data)) which classifies people described by a set of attributes as good or bad credit risks. 
 
 ## Approach
 - Random forest classifier is an ensembled version of decision trees. It combines different decision trees in order to prevent overfitting.  
@@ -28,7 +28,7 @@ val pipeline = new Pipeline().setStages(Array(RFclassifier.setSeed(1234)))
 ```  
 4. **Training and Validation data** ratios have to be declared. 
 
-By using these 4 components, TrainValidationSplit object is created in order to find the best fitted model of 12 models stated in parameter grid:  
+By using these 4 components, TrainValidationSplit object is created in order to find the best fitted one of 12 models stated in parameter grid:  
 ```scala
 val trainValidationSplit = new TrainValidationSplit()
   .setEstimator(pipeline)
