@@ -137,9 +137,9 @@ object Credit {
      *  use test data directly because we do not want our model to be fitted for specifically test data.
      *  Instead, we want a more generalized model. So, our test data should not be used for parameter tuning.
      *  A valdiation dataset is created (25% of train data = .8 * .25 = .2) from the 25% percent of original data.
-     *   - In summary, 60% of the original data => training
-     *   	       20% of the original data => validation
-     *   	       20% of the original data => test
+     *   - In summary, 60% data => training
+     *		       20% data => validation
+     *   	       20% data => test
      */
     val trainValidationSplit = new TrainValidationSplit()
       .setEstimator(pipeline)
