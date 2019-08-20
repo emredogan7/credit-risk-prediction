@@ -53,7 +53,7 @@ object Credit {
 
     import sqlContext.implicits._
     // load the data into a  RDD
-    val creditDF = parseRDD(sc.textFile("credit.csv")).map(parseCredit).toDF().cache()
+    val creditDF = parseRDD(sc.textFile("data/credit.csv")).map(parseCredit).toDF().cache()
     println(creditDF.count())
     
     
